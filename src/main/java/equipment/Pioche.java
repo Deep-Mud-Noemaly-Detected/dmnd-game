@@ -1,4 +1,5 @@
 package equipment;
 
-public class Pioche {
+public class Pioche implements Item {
+    private int puissance;
 }

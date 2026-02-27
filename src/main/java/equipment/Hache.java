@@ -1,4 +1,5 @@
 package equipment;
 
-public class Hache {
+public class Hache implements Item {
+    private int degats;
 }
