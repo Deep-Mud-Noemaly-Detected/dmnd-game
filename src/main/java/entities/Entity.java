@@ -5,9 +5,10 @@ public abstract class Entity {
         private int y;
         private int pv;
 
-        public Entity(int x, int y) {
+        public Entity(int x, int y, int pv) {
             this.x = x;
             this.y = y;
+            this.pv = pv;
         }
 
         public int getX() {

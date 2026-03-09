@@ -1,5 +1,6 @@
 package network;
 
+import entities.Entity;
 import entities.Monster;
 import entities.Orc;
 
@@ -47,7 +48,17 @@ public class GameLoop extends Thread {
     }
 
     private void updateMonsters() {
-        // Ici, tu pourrais faire bouger les monstres vers le joueur le plus proche
-        // Et envoyer un GameEvent "MOVE_MONSTER" via server.broadcast()
+        for (Entity e : server.getEntities()) {
+            if (e instanceof Monster) {
+                int newX = e.getX() + (Math.random() > 0.5 ? 1 : -1);
+                int newY = e.getY() + (Math.random() > 0.5 ? 1 : -1);
+                // Limites (map de 20x20)
+                if (newX >= 0 && newX < 20 && newY >= 0 && newY < 20) {
+                    e.setX(newX);
+                    e.setY(newY);
+                    server.broadcast(new GameEvent("MOVE_MONSTER", newX, newY, "ORC"));
+                }
+            }
+        }
     }
 }

@@ -1,5 +1,7 @@
 package network;
 
+import entities.Player;
+
 import java.io.*;
 import java.net.Socket;
 

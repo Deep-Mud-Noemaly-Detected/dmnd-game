@@ -1,9 +1,7 @@
 package entities;
 
 public class Squelette extends Monster {
-    public Squelette() {
-        super("arc");
+    public Squelette(int x, int y, int pv) {
+        super(x, y, pv, "arc");
     }
-
-
 }

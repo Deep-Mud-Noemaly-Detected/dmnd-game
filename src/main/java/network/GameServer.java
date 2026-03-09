@@ -15,16 +15,21 @@ public class GameServer {
     private Tile[][] map;
     private int totalGoldCollected = 0;
     private final int OBJECTIF_OR = 10;
-    private static GameLoop gameLoop;
+    private GameLoop gameLoop;
+    private List<Entity> entities = new ArrayList<>();
 
     public GameServer(int width, int height) {
         this.map = new Tile[width][height];
-        // Initialiser la map avec des Tile (à faire ici ou dans une méthode dédiée)
+        for (int i = 0; i < width; i++) {
+            for (int j = 0; j < height; j++) {
+                map[i][j] = new Tile(Tile.EMPTY);
+            }
+        }
     }
 
     /**
      * Lance le jeu
-     * @param port
+     * @param port le port sur lequel le serveur écoute
      */
     public void start(int port) {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
@@ -53,7 +58,7 @@ public class GameServer {
         if (t != null && t.getType() == Tile.GOLD) {
             p.miner(t); // Le joueur gagne +4 or
             totalGoldCollected += 4;
-            map[x][y] = new Tile(0); // Remplace par du vide
+            map[x][y] = new Tile(Tile.EMPTY); // Remplace par du vide
 
             // On prévient tout le monde que la case a changé
             broadcast(new GameEvent("UPDATE_TILE", x, y, "EMPTY"));
@@ -62,7 +67,7 @@ public class GameServer {
 
     /**
      * Vérifie si objectif mission rempli
-     * @return
+     * @return true si l'objectif est atteint
      */
     public boolean verifierObjectif() {
         return totalGoldCollected >= OBJECTIF_OR;
@@ -70,22 +75,20 @@ public class GameServer {
 
     /**
      * Méthode pour ajouter une entité à la liste partagée
-     * @param e
+     * @param e l'entité à ajouter
      */
     public synchronized void addEntity(Entity e) {
         this.entities.add(e);
     }
 
+    public synchronized List<Entity> getEntities() {
+        return new ArrayList<>(entities); // Return a copy to avoid external modification
+    }
+
     public static void main(String[] args) {
         GameServer server = new GameServer(20, 20);
+        server.gameLoop = new GameLoop(server);
+        server.gameLoop.start();
         server.start(1234);
-
-        // Lancer la boucle de jeu (vagues, monstres)
-        gameLoop = new GameLoop(this);
-        gameLoop.start();
-
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            // ... reste du code accept() ...
-        } catch (IOException e) { e.printStackTrace(); }
     }
 }
