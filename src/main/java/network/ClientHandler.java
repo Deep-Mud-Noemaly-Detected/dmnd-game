@@ -19,7 +19,8 @@ public class ClientHandler extends Thread {
             this.out = new ObjectOutputStream(socket.getOutputStream());
             this.in = new ObjectInputStream(socket.getInputStream());
             // On crée un joueur pour ce client (position de départ 1,1)
-            this.player = new Player(1, 1, 100);
+            this.player = new Player(1, 1, 100, "Player", 10);
+            server.addEntity(player);
         } catch (IOException e) {
             e.printStackTrace();
         }

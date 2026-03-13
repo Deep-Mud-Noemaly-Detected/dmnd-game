@@ -82,7 +82,7 @@ public class GameServer {
     }
 
     public synchronized List<Entity> getEntities() {
-        return new ArrayList<>(entities); // Return a copy to avoid external modification
+        return new ArrayList<>(entities);
     }
 
     public static void main(String[] args) {
