@@ -5,19 +5,21 @@ import entities.Monster;
 import entities.Orc;
 
 public class GameLoop extends Thread {
-    private GameServer server;
-    private boolean running = true;
+    private final GameServer server;
+    private volatile boolean running = true;
     private int waveTimer = 0;
 
     public GameLoop(GameServer server) {
         this.server = server;
+        setName("game-loop");
+        setDaemon(true);
     }
 
     @Override
     public void run() {
         while (running) {
             try {
-                // On boucle toutes les secondes (1000ms)
+                // Tick toutes les secondes
                 Thread.sleep(1000);
 
                 waveTimer++;
@@ -32,14 +34,21 @@ public class GameLoop extends Thread {
                 updateMonsters();
 
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                // Permet un arrêt propre du thread
+                running = false;
+                Thread.currentThread().interrupt();
             }
         }
     }
 
+    public void stopLoop() {
+        running = false;
+        interrupt();
+    }
+
     private void spawnWave() {
         System.out.println("Une nouvelle vague apparaît !");
-        // Exemple : Faire apparaître un Orc à une position aléatoire
+        // Exemple : Faire apparaître un Orc à une position fixe
         Monster orc = new Orc(5, 5, 20);
         server.addEntity(orc);
 

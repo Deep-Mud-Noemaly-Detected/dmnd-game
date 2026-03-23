@@ -2,15 +2,27 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
-<?import javafx.scene.control.Button?>
-<VBox alignment="CENTER" spacing="20.0" xmlns:fx="http://javafx.com/fxml"
-      fx:controller="controller.GameController">
+<BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="controller.GameController">
     <padding>
-        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0"/>
+        <Insets bottom="12.0" left="12.0" right="12.0" top="12.0"/>
     </padding>
 
-    <Label fx:id="welcomeText"/>
-    <Button text="Hello!" onAction="#onHelloButtonClick"/>
-</VBox>
+    <top>
+        <Label fx:id="statusLabel" text="Chargement de la carte..." BorderPane.alignment="CENTER_LEFT"/>
+    </top>
+
+    <center>
+        <StackPane fx:id="gameContainer" style="-fx-background-color: #0b0b0b;" BorderPane.alignment="CENTER">
+            <StackPane fx:id="startOverlay" style="-fx-background-color: rgba(0,0,0,0.85);">
+                <VBox alignment="CENTER" spacing="14.0" maxWidth="900.0">
+                    <ImageView fx:id="startImageView" fitWidth="760.0" preserveRatio="true"/>
+                </VBox>
+            </StackPane>
+        </StackPane>
+    </center>
+</BorderPane>

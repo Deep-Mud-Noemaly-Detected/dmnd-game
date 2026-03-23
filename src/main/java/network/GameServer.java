@@ -14,21 +14,29 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class GameServer extends Application {
-    private List<ClientHandler> clients = new ArrayList<>();
+    private static final int DEFAULT_MAP_WIDTH = 20;
+    private static final int DEFAULT_MAP_HEIGHT = 20;
+
+    private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
     private Tile[][] map;
     private int totalGoldCollected = 0;
-    private final int OBJECTIF_OR = 10;
+    private static final int OBJECTIF_OR = 10;
     private GameLoop gameLoop;
-    private List<Entity> entities = new ArrayList<>();
+    private final List<Entity> entities = new CopyOnWriteArrayList<>();
     private int port;
 
     public GameServer() {
-        // Laisser vide pour lancer JavaFX sans paramètres
+        initMap(DEFAULT_MAP_WIDTH, DEFAULT_MAP_HEIGHT);
     }
 
     public GameServer(int width, int height) {
+        initMap(width, height);
+    }
+
+    private void initMap(int width, int height) {
         this.map = new Tile[width][height];
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < height; j++) {
@@ -40,17 +48,17 @@ public class GameServer extends Application {
     /**
      * Point d'entrée de l'application JavaFX
      * Le main ne fait que lancer JavaFX
-     * @param args
+     * @param args arguments de lancement
      */
     public static void main(String[] args) {
         launch(args);
     }
 
     /**
-     * Initialise la logique métier et affiche l'interface graphique
-     * JavaFX appelle AUTOMATIQUEMENT cette méthode sur le bon Thread
-     * @param primaryStage la fenêtre principale de JavaFX
+     * Initialise la logique métier et affiche l'interface graphique.
+     * JavaFX appelle automatiquement cette méthode sur le thread FX.
      */
+    @Override
     public void start(Stage primaryStage) {
         // Initialisation de la logique métier
         this.port = 1234;
@@ -76,6 +84,13 @@ public class GameServer extends Application {
         }
     }
 
+    @Override
+    public void stop() {
+        if (gameLoop != null) {
+            gameLoop.stopLoop();
+        }
+    }
+
     /**
      * Lance le serveur réseau dans un thread séparé pour ne pas bloquer l'interface graphique
      */
@@ -90,25 +105,26 @@ public class GameServer extends Application {
                     clients.add(handler);
                     handler.start();
                     System.out.println("Nouveau nain connecté !");
-
-                    // Note : Si tu veux mettre à jour l'UI (ex: un compteur de clients),
-                    // TODO il faudra utiliser Platform.runLater(() -> ... );
                 }
             } catch (IOException e) {
                 System.err.println("Erreur Serveur : " + e.getMessage());
             }
-        });
+        }, "server-network");
         serverThread.setDaemon(true);
         serverThread.start();
     }
 
-    public synchronized void broadcast(GameEvent event) {
+    public void broadcast(GameEvent event) {
         for (ClientHandler client : clients) {
             client.sendEvent(event);
         }
     }
 
     public synchronized void processMining(int x, int y, Player p) {
+        if (x < 0 || y < 0 || x >= map.length || y >= map[0].length) {
+            return;
+        }
+
         Tile t = map[x][y];
         if (t != null && t.getType() == Tile.GOLD) {
             p.miner(t); // Le joueur gagne +4 or
@@ -132,7 +148,7 @@ public class GameServer extends Application {
      * Méthode pour ajouter une entité à la liste partagée
      * @param e l'entité à ajouter
      */
-    public synchronized void addEntity(Entity e) {
+    public void addEntity(Entity e) {
         this.entities.add(e);
     }
 
@@ -140,7 +156,7 @@ public class GameServer extends Application {
      * Méthode pour récupérer la liste des entités de manière thread-safe
      * @return une copie de la liste des entités
      */
-    public synchronized List<Entity> getEntities() {
+    public List<Entity> getEntities() {
         return new ArrayList<>(entities);
     }
 }
