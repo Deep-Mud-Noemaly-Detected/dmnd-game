@@ -7,6 +7,8 @@ import javafx.fxml.FXML;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
+import javafx.scene.control.Spinner;
+import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
@@ -16,6 +18,7 @@ import javafx.scene.paint.Color;
 import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.IntConsumer;
 
 public class GameController {
     private static final int TILE_SIZE = 24;
@@ -34,6 +37,9 @@ public class GameController {
     @FXML
     private ImageView startImageView;
 
+    @FXML
+    private Spinner<Integer> clientsSpinner;
+
     private final Set<KeyCode> pressedKeys = new HashSet<>();
 
     private Canvas canvas;
@@ -44,6 +50,8 @@ public class GameController {
     private Image wallTile;
 
     private boolean gameStarted;
+    private boolean serverMode;
+    private IntConsumer launchClientsAction;
 
     @FXML
     private void initialize() {
@@ -64,13 +72,30 @@ public class GameController {
         canvas.widthProperty().bind(gameContainer.widthProperty());
         canvas.heightProperty().bind(gameContainer.heightProperty());
 
+        if (clientsSpinner != null) {
+            clientsSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 8, 2));
+            clientsSpinner.setEditable(true);
+            clientsSpinner.setOnKeyPressed(event -> {
+                if (serverMode && event.getCode() == KeyCode.ENTER) {
+                    requestLaunchClients();
+                    event.consume();
+                }
+            });
+        }
+
         gameContainer.setFocusTraversable(true);
         gameContainer.setOnKeyPressed(event -> {
-            if (!gameStarted && event.getCode() == KeyCode.ENTER) {
-                startGame();
-                return;
+            if (event.getCode() == KeyCode.ENTER) {
+                if (serverMode) {
+                    requestLaunchClients();
+                    return;
+                }
+                if (!gameStarted) {
+                    startGame();
+                    return;
+                }
             }
-            if (gameStarted) {
+            if (gameStarted && !serverMode) {
                 pressedKeys.add(event.getCode());
             }
         });
@@ -90,6 +115,29 @@ public class GameController {
         if (startImage == null) {
             statusLabel.setText("Image de demarrage introuvable - appuie sur ENTREE pour commencer");
         }
+    }
+
+    public void setLaunchClientsAction(IntConsumer launchClientsAction) {
+        this.launchClientsAction = launchClientsAction;
+        this.serverMode = launchClientsAction != null;
+        if (serverMode && statusLabel != null) {
+            statusLabel.setText("Serveur actif - choisis un nombre de clients puis appuie sur ENTREE");
+        }
+    }
+
+    private void requestLaunchClients() {
+        if (launchClientsAction == null) {
+            statusLabel.setText("Mode local actif");
+            return;
+        }
+
+        int count = 2;
+        if (clientsSpinner != null && clientsSpinner.getValue() != null) {
+            count = clientsSpinner.getValue();
+        }
+
+        launchClientsAction.accept(count);
+        statusLabel.setText("Lancement de " + count + " client(s) en cours...");
     }
 
     private void startGame() {

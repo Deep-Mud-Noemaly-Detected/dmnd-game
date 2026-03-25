@@ -109,4 +109,9 @@ public final class PlayerView {
     public Facing getFacing() {
         return facing;
     }
+
+    public void setPosition(double x, double y) {
+        this.x = x;
+        this.y = y;
+    }
 }

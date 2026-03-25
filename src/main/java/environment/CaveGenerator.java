@@ -3,6 +3,7 @@ package environment;
 import java.util.Random;
 
 public final class CaveGenerator {
+    private static final long DEFAULT_MAP_SEED = 123456789L;
     private final int width;
     private final int height;
     private final boolean[][] walls;
@@ -14,7 +15,11 @@ public final class CaveGenerator {
     }
 
     public static CaveGenerator generate(int width, int height, double wallChance, int smoothIterations) {
-        Random random = new Random();
+        return generate(width, height, wallChance, smoothIterations, DEFAULT_MAP_SEED);
+    }
+
+    public static CaveGenerator generate(int width, int height, double wallChance, int smoothIterations, long seed) {
+        Random random = new Random(seed);
         boolean[][] grid = new boolean[height][width];
 
         for (int y = 0; y < height; y++) {
