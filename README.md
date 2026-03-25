@@ -6,6 +6,7 @@ Mini base JavaFX pour afficher une cave procedurale avec un nain jouable.
 
 - Generation de cave par automate cellulaire (`CaveMap`)
 - Rendu de la map sur `Canvas`
+- Rendu map avec tuiles depuis `src/main/resources/tiles` (sol + murs, fallback couleur si asset manquant)
 - Deplacement du nain avec collisions sur les murs
 - Camera qui suit le joueur
 
