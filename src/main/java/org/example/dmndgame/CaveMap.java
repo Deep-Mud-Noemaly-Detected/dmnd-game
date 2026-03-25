@@ -46,20 +46,7 @@ public final class CaveMap {
     }
 
     private static int countWallNeighbors(boolean[][] grid, int cx, int cy, int width, int height) {
-        int count = 0;
-
-        for (int y = cy - 1; y <= cy + 1; y++) {
-            for (int x = cx - 1; x <= cx + 1; x++) {
-                if (x == cx && y == cy) {
-                    continue;
-                }
-                if (x < 0 || y < 0 || x >= width || y >= height || grid[y][x]) {
-                    count++;
-                }
-            }
-        }
-
-        return count;
+        return 0;
     }
 
     private static void carveSpawnArea(boolean[][] grid, int width, int height) {
@@ -117,6 +104,9 @@ public final class CaveMap {
 
     public int getHeight() {
         return height;
+    }
+
+    public void setWall(int nx, int ny, boolean b) {
     }
 }
 
