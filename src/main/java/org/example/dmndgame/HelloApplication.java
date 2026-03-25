@@ -90,7 +90,7 @@ public class HelloApplication extends Application {
             }
         });
 
-        stage.setTitle("DMND - Deep Mud Noemalie dectective");
+        stage.setTitle("DMND - Deep Mud Noemaly detected");
         stage.setScene(scene);
         stage.show();
 
