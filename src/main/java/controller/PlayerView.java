@@ -19,9 +19,35 @@ public final class PlayerView {
     private Facing facing = Facing.DOWN;
     private double animationTime;
 
+    // --- État de minage ---
+    private boolean crushing = false;
+    private double crushAnimTime = 0;
+    private static final double CRUSH_DURATION = 0.4;
+
     public PlayerView(double x, double y) {
         this.x = x;
         this.y = y;
+    }
+
+    public void startCrush() {
+        crushing = true;
+        crushAnimTime = 0;
+    }
+
+    public void updateCrush(double delta) {
+        if (crushing) {
+            crushAnimTime += delta;
+            if (crushAnimTime >= CRUSH_DURATION) {
+                crushing = false;
+                crushAnimTime = 0;
+            }
+        }
+    }
+
+    public boolean isCrushing() { return crushing; }
+
+    public int getCrushFrame(int frameCount) {
+        return (int) (crushAnimTime / CRUSH_DURATION * frameCount) % Math.max(1, frameCount);
     }
 
     public void update(double deltaSeconds, boolean up, boolean down, boolean left, boolean right, CaveGenerator map) {

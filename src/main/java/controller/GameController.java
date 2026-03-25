@@ -59,9 +59,9 @@ public class GameController {
         int[] spawn = caveMap.findSpawnNearCenter();
         player = new PlayerView(spawn[0] + 0.5, spawn[1] + 0.5);
 
-        floorTile = loadImage("/tiles/tile_0000.png");
-        wallTile = loadImage("/tiles/tile_0001.png");
-        dwarfSpriteSheet = loadImage("/entities/miner/Walk_Base/Walk_Down-Sheet.png");
+        floorTile = loadImage("/tiles/Sol/sol.png");
+        wallTile = loadImage("/tiles/mur/tile_0001.png");
+        dwarfSpriteSheet = loadImage("/entities/miner/animations/Walk_Base/Walk_Down-Sheet.png");
 
         canvas = new Canvas(DEFAULT_VIEW_WIDTH, DEFAULT_VIEW_HEIGHT);
         // Le canvas doit rester en fond; l'overlay de demarrage reste au-dessus jusqu'a Entree.
