@@ -7,7 +7,7 @@ Un nain mineur explore une cave générée procéduralement, collecte de l'or et
 - Java 17
 - Maven (ou utiliser le wrapper `mvnw` fourni)
 - JavaFX 21 (géré automatiquement par Maven)
-- 
+  
 > **Note :** Les dépendances JavaFX dans le `pom.xml` sont actuellement classifiées `win`.
 > Sur Linux ou macOS, remplacez `<classifier>win</classifier>` par `linux` ou `mac` dans le `pom.xml`.
 
