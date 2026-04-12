@@ -11,6 +11,8 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -37,6 +39,7 @@ public class GameServer extends Application {
     private volatile boolean acceptingClients = true;
     private final AtomicInteger playerIdCounter = new AtomicInteger(1);
     private final AtomicInteger spawnCounter = new AtomicInteger(0);
+    private MediaPlayer bgMusicPlayer;
 
     public GameServer() {
         initMap(DEFAULT_MAP_WIDTH, DEFAULT_MAP_HEIGHT);
@@ -84,6 +87,7 @@ public class GameServer extends Application {
             primaryStage.setTitle("DMND - Serveur");
             primaryStage.setScene(new Scene(root, 1000, 720));
             primaryStage.show();
+            startServerMusic();
         } catch (IOException e) {
             // Fallback minimal si le FXML est indisponible.
             Label title = new Label("Serveur DMND actif");
@@ -94,6 +98,7 @@ public class GameServer extends Application {
             primaryStage.setTitle("DMND - Serveur");
             primaryStage.setScene(new Scene(root, 480, 120));
             primaryStage.show();
+            startServerMusic();
 
             System.err.println("Impossible de charger index.fxml: " + e.getMessage());
         }
@@ -102,6 +107,7 @@ public class GameServer extends Application {
     @Override
     public void stop() {
         acceptingClients = false;
+        stopServerMusic();
         if (gameLoop != null) {
             gameLoop.stopLoop();
         }
@@ -165,6 +171,43 @@ public class GameServer extends Application {
         }, "server-network");
         serverThread.setDaemon(true);
         serverThread.start();
+    }
+
+    private void startServerMusic() {
+        if (bgMusicPlayer != null) {
+            return;
+        }
+
+        try {
+            // Support simple: le fichier réellement present dans les ressources.
+            var musicUrl = GameServer.class.getResource("/audio/ancient_slavic_pagan_music.wav");
+            if (musicUrl == null) {
+                System.err.println("Musique serveur introuvable: /audio/ancient_slavic_pagan_music.wav");
+                return;
+            }
+
+            Media media = new Media(musicUrl.toExternalForm());
+            bgMusicPlayer = new MediaPlayer(media);
+            bgMusicPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+            bgMusicPlayer.setVolume(0.35);
+            bgMusicPlayer.setOnError(() -> System.err.println("Erreur lecture musique serveur: " + bgMusicPlayer.getError()));
+            bgMusicPlayer.play();
+        } catch (Exception e) {
+            System.err.println("Impossible de lancer la musique serveur: " + e.getMessage());
+        }
+    }
+
+    private void stopServerMusic() {
+        if (bgMusicPlayer == null) {
+            return;
+        }
+        try {
+            bgMusicPlayer.stop();
+            bgMusicPlayer.dispose();
+        } catch (Exception ignored) {
+        } finally {
+            bgMusicPlayer = null;
+        }
     }
 
     public void publishServerEvent(GameEvent event) {

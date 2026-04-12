@@ -13,7 +13,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.12.1</junit.version>
         <java.version>17</java.version>
-        <javafx.version>21.0.6</javafx.version>
+        <javafx.version>23.0.1</javafx.version>
         <app.mainClass>network.GameServer</app.mainClass>
     </properties>
 
@@ -27,6 +27,12 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>win</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-media</artifactId>
             <version>${javafx.version}</version>
             <classifier>win</classifier>
         </dependency>
