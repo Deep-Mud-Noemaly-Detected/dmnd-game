@@ -21,6 +21,7 @@ public class GameEvent implements Serializable {
     public static final String WELCOME = "WELCOME";
     public static final String PLAYER_JOINED = "PLAYER_JOINED";
     public static final String PLAYER_LEFT = "PLAYER_LEFT";
+    public static final String MISSION_PROGRESS = "MISSION_PROGRESS";
 
     public GameEvent(String type, int x, int y, String data) {
         this.type = type;

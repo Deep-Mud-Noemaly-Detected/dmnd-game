@@ -45,6 +45,7 @@ public class GameClient extends Application {
     // --- MISSION ---
     private static final int MISSION_OBJECTIF = 15;
     private int mineraisRecoltes = 0;
+    private int missionObjectif = MISSION_OBJECTIF;
 
     // --- Minerais ---
     private int[][] mineraiHP;
@@ -169,11 +170,9 @@ public class GameClient extends Application {
             mineraiHP[tx][ty]--;
             player.startCrush();
             mineCooldown = MINE_COOLDOWN_DURATION;
-            if (mineraiHP[tx][ty] <= 0) {
-                mineraisRecoltes++;
-            }
-            // Envoyer l'action de minage au serveur
-            sendEvent(new GameEvent(GameEvent.MINE, tx, ty, ""));
+            boolean collected = mineraiHP[tx][ty] <= 0;
+            // Le serveur maintient la progression coop globale.
+            sendEvent(new GameEvent(GameEvent.MINE, tx, ty, collected ? "COLLECTED" : ""));
         }
     }
 
@@ -228,6 +227,10 @@ public class GameClient extends Application {
             }
             case GameEvent.PLAYER_LEFT -> {
                 if (event.data != null) remotePlayers.remove(event.data);
+            }
+            case GameEvent.MISSION_PROGRESS -> {
+                mineraisRecoltes = Math.max(0, event.x);
+                missionObjectif = event.y > 0 ? event.y : missionObjectif;
             }
             case GameEvent.VICTORY -> statusText = event.data == null ? "Victoire" : event.data;
         }
@@ -500,12 +503,12 @@ public class GameClient extends Application {
         }
         gc.setFont(Font.font("Monospaced", FontWeight.BOLD, 16));
         gc.setFill(Color.CYAN);
-        gc.fillText("Minerais : " + mineraisRecoltes + " / " + MISSION_OBJECTIF, 54, 34);
+        gc.fillText("Minerais : " + mineraisRecoltes + " / " + missionObjectif, 54, 34);
 
         double barX = 54, barY = 42, barW = 220, barH = 14;
         gc.setFill(Color.rgb(40, 40, 40));
         gc.fillRoundRect(barX, barY, barW, barH, 6, 6);
-        double progress = Math.min(1.0, (double) mineraisRecoltes / MISSION_OBJECTIF);
+        double progress = Math.min(1.0, (double) mineraisRecoltes / missionObjectif);
         gc.setFill(progress >= 1.0 ? Color.LIMEGREEN : Color.DEEPSKYBLUE);
         gc.fillRoundRect(barX, barY, barW * progress, barH, 6, 6);
         gc.setStroke(Color.rgb(100, 100, 100));
@@ -515,7 +518,7 @@ public class GameClient extends Application {
         gc.setFill(Color.LIGHTGRAY);
         gc.fillText("Clic gauche = Miner | ZQSD = Bouger | " + statusText, 12, 84);
 
-        if (mineraisRecoltes >= MISSION_OBJECTIF) {
+        if (mineraisRecoltes >= missionObjectif) {
             gc.setFill(Color.rgb(0, 0, 0, 0.7));
             gc.fillRoundRect(SCREEN_WIDTH / 2.0 - 200, SCREEN_HEIGHT / 2.0 - 40, 400, 80, 20, 20);
             gc.setFont(Font.font("Monospaced", FontWeight.BOLD, 28));

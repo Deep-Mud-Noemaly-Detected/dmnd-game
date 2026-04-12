@@ -33,6 +33,7 @@ public class ClientHandler extends Thread {
 
             server.sendExistingPlayersTo(this);
             sendEvent(new GameEvent(GameEvent.WELCOME, spawn[0], spawn[1], playerId));
+            server.sendMissionProgressTo(this);
             server.publishServerEvent(new GameEvent(GameEvent.PLAYER_JOINED, spawn[0], spawn[1], playerId));
         } catch (IOException e) {
             running = false;
@@ -64,6 +65,9 @@ public class ClientHandler extends Thread {
 
         if (GameEvent.MINE.equals(event.type)) {
             server.requestMining(event.x, event.y, this.player);
+            if ("COLLECTED".equals(event.data)) {
+                server.registerMineralCollected();
+            }
         } else if (GameEvent.MOVE.equals(event.type)) {
             this.player.setX(event.x);
             this.player.setY(event.y);

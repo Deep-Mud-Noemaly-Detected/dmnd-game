@@ -23,6 +23,10 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Classe principale du serveur de jeu DMND.
+ * Gère la logique métier, les connexions clients, et la communication réseau.
+ */
 public class GameServer extends Application {
     private static final int DEFAULT_MAP_WIDTH = 20;
     private static final int DEFAULT_MAP_HEIGHT = 20;
@@ -32,7 +36,7 @@ public class GameServer extends Application {
     private final List<GameClient> launchedClients = new CopyOnWriteArrayList<>();
     private Tile[][] map;
     private int totalGoldCollected = 0;
-    private static final int OBJECTIF_OR = 10;
+    private static final int OBJECTIF_OR = 15;
     private GameLoop gameLoop;
     private final List<Entity> entities = new CopyOnWriteArrayList<>();
     private int port;
@@ -49,6 +53,11 @@ public class GameServer extends Application {
         initMap(width, height);
     }
 
+    /**
+     * Initialise la carte de jeu avec des tuiles vides.
+     * @param width
+     * @param height
+     */
     private void initMap(int width, int height) {
         this.map = new Tile[width][height];
         for (int i = 0; i < width; i++) {
@@ -78,6 +87,7 @@ public class GameServer extends Application {
         this.gameLoop.start();
         startNetworkThread();
 
+        // Essaye de charger l'interface depuis le FXML.
         try {
             FXMLLoader loader = new FXMLLoader(GameServer.class.getResource("/index.fxml"));
             Parent root = loader.load();
@@ -104,6 +114,9 @@ public class GameServer extends Application {
         }
     }
 
+    /**
+     * Arrête le serveur, les connexions clients, la boucle de jeu, et la musique de fond.
+     */
     @Override
     public void stop() {
         acceptingClients = false;
@@ -122,6 +135,10 @@ public class GameServer extends Application {
         }
     }
 
+    /**
+     * Lance un nombre spécifié de fenêtres clients pour tester le serveur localement.
+     * @param requestedCount
+     */
     private void launchClientWindows(int requestedCount) {
         int count = Math.max(1, Math.min(MAX_CLIENT_WINDOWS, requestedCount));
 
@@ -173,13 +190,15 @@ public class GameServer extends Application {
         serverThread.start();
     }
 
+    /**
+     * Démarre la musique de fond du serveur.
+     */
     private void startServerMusic() {
         if (bgMusicPlayer != null) {
             return;
         }
 
         try {
-            // Support simple: le fichier réellement present dans les ressources.
             var musicUrl = GameServer.class.getResource("/audio/ancient_slavic_pagan_music.wav");
             if (musicUrl == null) {
                 System.err.println("Musique serveur introuvable: /audio/ancient_slavic_pagan_music.wav");
@@ -197,6 +216,9 @@ public class GameServer extends Application {
         }
     }
 
+    /**
+     * Arrête la musique de fond du serveur et libère les ressources associées.
+     */
     private void stopServerMusic() {
         if (bgMusicPlayer == null) {
             return;
@@ -210,10 +232,18 @@ public class GameServer extends Application {
         }
     }
 
+    /**
+     * Publie un événement à tous les clients connectés.
+     * @param event
+     */
     public void publishServerEvent(GameEvent event) {
         broadcast(event);
     }
 
+    /**
+     * Envoie un événement à tous les clients connectés. Si l'envoi échoue pour un client, il est déconnecté.
+     * @param event
+     */
     public void broadcast(GameEvent event) {
         for (ClientHandler client : clients) {
             boolean sent = client.sendEvent(event);
@@ -223,6 +253,14 @@ public class GameServer extends Application {
         }
     }
 
+    /**
+     * Traite une action de minage d'or d'un joueur.
+     * Si la tuile ciblée contient de l'or, le joueur gagne 4 pièces,
+     * la tuile devient vide, et tous les clients sont informés du changement.
+     * @param x
+     * @param y
+     * @param p
+     */
     public synchronized void processMining(int x, int y, Player p) {
         if (x < 0 || y < 0 || x >= map.length || y >= map[0].length) {
             return;
@@ -236,9 +274,55 @@ public class GameServer extends Application {
 
             // On prévient tout le monde que la case a changé
             broadcast(new GameEvent(GameEvent.UPDATE_TILE, x, y, "EMPTY"));
+            broadcastMissionProgress();
         }
     }
 
+    /**
+     * Enregistre la collecte d'un minerai d'or par un joueur. Incrémente le total, informe les clients, et vérifie si l'objectif est atteint.
+     */
+    public synchronized void registerMineralCollected() {
+        totalGoldCollected++;
+        broadcastMissionProgress();
+        if (verifierObjectif()) {
+            publishServerEvent(new GameEvent(GameEvent.VICTORY, 0, 0, "Objectif atteint !"));
+        }
+    }
+
+    /**
+     * Envoie la progression actuelle de la mission (or collecté vs objectif) à un client spécifique.
+     * @param target
+     */
+    public synchronized void sendMissionProgressTo(ClientHandler target) {
+        if (target == null) {
+            return;
+        }
+        target.sendEvent(new GameEvent(
+                GameEvent.MISSION_PROGRESS,
+                totalGoldCollected,
+                OBJECTIF_OR,
+                ""
+        ));
+    }
+
+    /**
+     * Diffuse à tous les clients la progression actuelle de la mission (or collecté vs objectif).
+     */
+    private synchronized void broadcastMissionProgress() {
+        publishServerEvent(new GameEvent(
+                GameEvent.MISSION_PROGRESS,
+                totalGoldCollected,
+                OBJECTIF_OR,
+                ""
+        ));
+    }
+
+    /**
+     * Demande au GameLoop de traiter une action de minage d'or d'un joueur. Si le GameLoop n'est pas actif, traite immédiatement.
+     * @param x
+     * @param y
+     * @param p
+     */
     public void requestMining(int x, int y, Player p) {
         if (gameLoop != null) {
             gameLoop.requestMining(p, x, y);
@@ -263,33 +347,58 @@ public class GameServer extends Application {
         this.entities.add(e);
     }
 
+    /**
+     * Méthode pour retirer une entité de la liste partagée
+     * @param e
+     */
     public void removeEntity(Entity e) {
         this.entities.remove(e);
     }
 
+    /**
+     * Méthode pour retirer un client de la liste partagée
+     * @param client
+     */
     public void removeClient(ClientHandler client) {
         clients.remove(client);
     }
 
+    /**
+     * Retourne la largeur de la carte de jeu.
+     * @return
+     */
     public int getMapWidth() {
         return map.length;
     }
 
+    /**
+     * Retourne la hauteur de la carte de jeu.
+     * @return
+     */
     public int getMapHeight() {
         return map[0].length;
     }
 
     /**
-     * Retourne une copie pour eviter les problemes de concurrence pendant l'iteration.
+     * Retourne une copie pour éviter les problèmes de concurrence pendant l'itération.
      */
     public List<Entity> getEntities() {
         return new ArrayList<>(entities);
     }
 
+    /**
+     * Génère un nouvel ID de joueur unique en utilisant un compteur atomique pour garantir l'unicité même avec des connexions simultanées.
+     * @return
+     */
     public String nextPlayerId() {
         return "P" + playerIdCounter.getAndIncrement();
     }
 
+    /**
+     * Alloue une position de spawn pour un nouveau joueur.
+     * Les positions sont générées autour du centre de la carte pour favoriser les interactions initiales.
+     * @return
+     */
     public int[] allocateSpawnPosition() {
         int centerX = Math.max(2, getMapWidth() / 2);
         int centerY = Math.max(2, getMapHeight() / 2);
@@ -315,6 +424,10 @@ public class GameServer extends Application {
         return new int[]{x, y};
     }
 
+    /**
+     * Envoie les informations de tous les joueurs déjà connectés à un client cible, afin qu'il puisse les afficher correctement à son arrivée.
+     * @param target
+     */
     public void sendExistingPlayersTo(ClientHandler target) {
         for (ClientHandler client : clients) {
             target.sendEvent(new GameEvent(

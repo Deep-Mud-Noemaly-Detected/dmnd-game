@@ -10,6 +10,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.LockSupport;
 
+/**
+ * GameLoop est un thread qui gère la logique de jeu côté serveur, notamment :
+ * - le traitement des actions de minage des joueurs
+ * - la génération périodique de vagues de monstres
+ * - le déplacement des monstres
+ */
 public class GameLoop extends Thread {
     private static final long TICK_MILLIS = 50;
     private static final long WAVE_INTERVAL_MILLIS = 30_000;
@@ -28,6 +34,9 @@ public class GameLoop extends Thread {
         setDaemon(true);
     }
 
+    /**
+     * Boucle principale du jeu, qui s'exécute tant que le serveur est actif.
+     */
     @Override
     public void run() {
         long lastTickTime = System.currentTimeMillis();
@@ -66,6 +75,9 @@ public class GameLoop extends Thread {
         }
     }
 
+    /**
+     * Arrête la boucle de jeu et interrompt le thread pour sortir rapidement du sleep si nécessaire.
+     */
     public void stopLoop() {
         running = false;
         interrupt();
