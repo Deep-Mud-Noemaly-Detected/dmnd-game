@@ -84,3 +84,7 @@ src/main/resources/
 ├── entities/                 # Sprites nain et monstres
 └── items/                    # Sprites cristaux / objets
 ```
+
+## Diagramme de classes
+
+Le diagramme de classes PlantUML du projet est disponible dans `diagram-classes.puml` à la racine du dépôt.
