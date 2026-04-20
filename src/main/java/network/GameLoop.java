@@ -6,27 +6,38 @@ import entities.Orc;
 import entities.Player;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.LockSupport;
 
 /**
- * GameLoop est un thread qui gère la logique de jeu côté serveur, notamment :
- * - le traitement des actions de minage des joueurs
- * - la génération périodique de vagues de monstres
- * - le déplacement des monstres
+ * GameLoop est un thread qui gère la logique de jeu côté serveur :
+ * - Minage des joueurs
+ * - Vagues de monstres (Orcs uniquement pour l'instant)
+ * - Déplacement des monstres vers les joueurs
+ * - Attaques des monstres
  */
 public class GameLoop extends Thread {
+    // --- Configuration du timing (en millisecondes) ---
     private static final long TICK_MILLIS = 50;
-    private static final long WAVE_INTERVAL_MILLIS = 30_000;
-    private static final long MONSTER_MOVE_INTERVAL_MILLIS = 1_000;
+    private static final long WAVE_INTERVAL_MILLIS = 20_000;
+    private static final long MONSTER_MOVE_MILLIS = 1_000;
+    private static final long MONSTER_ATTACK_MILLIS = 1_500;
     private static final long MINING_DURATION_MILLIS = 1_500;
+
+    // --- Configuration des monstres ---
+    private static final int ORC_PV = 30;
+    private static final int SQUELETTE_PV = 15;
 
     private final GameServer server;
     private final ConcurrentLinkedQueue<MiningRequest> pendingMiningRequests = new ConcurrentLinkedQueue<>();
     private final Map<Player, MiningProgress> miningByPlayer = new HashMap<>();
+    private final Random random = new Random();
 
     private volatile boolean running = true;
+    private int waveNumber = 0;
 
     public GameLoop(GameServer server) {
         this.server = server;
@@ -35,13 +46,15 @@ public class GameLoop extends Thread {
     }
 
     /**
-     * Boucle principale du jeu, qui s'exécute tant que le serveur est actif.
+     * Boucle principale du jeu — tourne tant que le serveur est actif.
+     * Gère : minage, vagues, déplacement et attaque des monstres.
      */
     @Override
     public void run() {
         long lastTickTime = System.currentTimeMillis();
-        long lastWaveTime = lastTickTime;
+        long lastWaveTime = lastTickTime - WAVE_INTERVAL_MILLIS + 5_000;
         long lastMonsterMoveTime = lastTickTime;
+        long lastMonsterAttackTime = lastTickTime;
 
         while (running) {
             LockSupport.parkNanos(TICK_MILLIS * 1_000_000L);
@@ -54,29 +67,42 @@ public class GameLoop extends Thread {
             long elapsed = now - lastTickTime;
             lastTickTime = now;
 
+            // 1. Traitement du minage
             processPendingMiningRequests(now);
             updateMiningProgress(now);
 
+            // 2. Vagues de monstres
             if (now - lastWaveTime >= WAVE_INTERVAL_MILLIS) {
                 spawnWave();
                 lastWaveTime = now;
             }
 
-            if (now - lastMonsterMoveTime >= MONSTER_MOVE_INTERVAL_MILLIS) {
-                updateMonsters();
+            // 3. Déplacement des monstres vers les joueurs
+            if (now - lastMonsterMoveTime >= MONSTER_MOVE_MILLIS) {
+                updateMonsterMovement();
                 lastMonsterMoveTime = now;
             }
 
-            // Garde-fou contre d'eventuels retours temps systeme tres rapides.
+            // 4. Attaques des monstres
+            if (now - lastMonsterAttackTime >= MONSTER_ATTACK_MILLIS) {
+                updateMonsterAttacks();
+                lastMonsterAttackTime = now;
+            }
+
+            // 5. Nettoyage des monstres morts
+            removeDeadMonsters();
+
+            // Garde-fou temps système
             if (elapsed < 0) {
                 lastWaveTime = now;
                 lastMonsterMoveTime = now;
+                lastMonsterAttackTime = now;
             }
         }
     }
 
     /**
-     * Arrête la boucle de jeu et interrompt le thread pour sortir rapidement du sleep si nécessaire.
+     * Arrête la boucle de jeu.
      */
     public void stopLoop() {
         running = false;
@@ -112,54 +138,161 @@ public class GameLoop extends Thread {
         });
     }
 
+    /**
+     * Génère une vague de monstres.
+     * Simplifié : uniquement des Orcs pour le moment car squelette tendue pour le moment.
+     */
     private void spawnWave() {
-        int spawnX = Math.max(1, server.getMapWidth() / 2);
-        int spawnY = Math.max(1, server.getMapHeight() / 2);
-
-        Monster orc = new Orc(spawnX, spawnY, 20);
-        server.addEntity(orc);
-
-        server.publishServerEvent(new GameEvent(GameEvent.SPAWN_MONSTER, spawnX, spawnY, "ORC"));
-    }
-
-    private void updateMonsters() {
+        waveNumber++;
         int mapWidth = server.getMapWidth();
         int mapHeight = server.getMapHeight();
 
-        for (Entity e : server.getEntities()) {
-            if (!(e instanceof Monster)) {
+        int monsterCount = Math.min(waveNumber, 3);
+
+        System.out.println("[GameLoop] Vague " + waveNumber + " : " + monsterCount + " Orc(s)");
+
+        for (int i = 0; i < monsterCount; i++) {
+            // Spawn aléatoire sur les bords de la map
+            int spawnX, spawnY;
+            if (random.nextBoolean()) {
+                spawnX = random.nextBoolean() ? 1 : mapWidth - 2;
+                spawnY = 1 + random.nextInt(Math.max(1, mapHeight - 2));
+            } else {
+                spawnX = 1 + random.nextInt(Math.max(1, mapWidth - 2));
+                spawnY = random.nextBoolean() ? 1 : mapHeight - 2;
+            }
+
+            // Uniquement des Orcs (simplifié)
+            Monster monster = new Orc(spawnX, spawnY, ORC_PV);
+            server.addEntity(monster);
+
+            server.publishServerEvent(new GameEvent(GameEvent.SPAWN_MONSTER, spawnX, spawnY, "ORC"));
+        }
+    }
+
+
+    private void updateMonsterMovement() {
+        int mapWidth = server.getMapWidth();
+        int mapHeight = server.getMapHeight();
+        List<Entity> entities = server.getEntities();
+
+        // Trouve tous les joueurs vivants
+        List<Player> players = entities.stream()
+                .filter(e -> e instanceof Player && e.isAlive())
+                .map(e -> (Player) e)
+                .toList();
+
+        if (players.isEmpty()) {
+            return;
+        }
+
+        for (Entity e : entities) {
+            if (!(e instanceof Monster monster) || !monster.isAlive()) {
                 continue;
             }
 
-            int newX = e.getX() + (Math.random() > 0.5 ? 1 : -1);
-            int newY = e.getY() + (Math.random() > 0.5 ? 1 : -1);
+            // Trouve le joueur le plus proche
+            Player closest = null;
+            int minDist = Integer.MAX_VALUE;
+            for (Player p : players) {
+                int dist = monster.distanceTo(p);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = p;
+                }
+            }
 
-            if (newX >= 0 && newX < mapWidth && newY >= 0 && newY < mapHeight) {
-                e.setX(newX);
-                e.setY(newY);
-                server.publishServerEvent(new GameEvent(GameEvent.MOVE_MONSTER, newX, newY, "ORC"));
+            // Déplace le monstre vers ce joueur
+            if (closest != null) {
+                monster.moveToward(closest, mapWidth, mapHeight);
+
+                String type = (monster instanceof Orc) ? "ORC" : "SQUELETTE";
+                server.publishServerEvent(new GameEvent(
+                        GameEvent.MOVE_MONSTER,
+                        monster.getX(),
+                        monster.getY(),
+                        type
+                ));
             }
         }
     }
 
-    private static final class MiningRequest {
-        private final Player player;
-        private final int x;
-        private final int y;
+    /**
+     * Fait attaquer chaque monstre si un joueur est à portée.
+     */
+    private void updateMonsterAttacks() {
+        List<Entity> entities = server.getEntities();
 
-        private MiningRequest(Player player, int x, int y) {
+        // Trouve tous les joueurs vivants
+        List<Player> players = entities.stream()
+                .filter(e -> e instanceof Player && e.isAlive())
+                .map(e -> (Player) e)
+                .toList();
+
+        for (Entity e : entities) {
+            if (!(e instanceof Monster monster) || !monster.isAlive()) {
+                continue;
+            }
+
+            // Attaque le joueur le plus proche s'il est à portée
+            for (Player p : players) {
+                if (monster.attaquer(p)) {
+                    String type = (monster instanceof Orc) ? "ORC" : "SQUELETTE";
+                    System.out.println("[GameLoop] " + type + " attaque " + p.getName() + " ! PV restants : " + p.getPv());
+
+                    server.publishServerEvent(new GameEvent(
+                            GameEvent.MONSTER_ATTACK,
+                            p.getX(),
+                            p.getY(),
+                            p.getName() + ":" + type + ":" + p.getPv()
+                    ));
+
+                    // Vérifie si le joueur est mort
+                    if (!p.isAlive()) {
+                        server.publishServerEvent(new GameEvent(
+                                GameEvent.PLAYER_DIED,
+                                p.getX(),
+                                p.getY(),
+                                p.getName()
+                        ));
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * Supprime les monstres morts de la liste des entités.
+     */
+    private void removeDeadMonsters() {
+        List<Entity> entities = server.getEntities();
+        for (Entity e : entities) {
+            if (e instanceof Monster && !e.isAlive()) {
+                server.removeEntity(e);
+                System.out.println("[GameLoop] Monstre éliminé !");
+            }
+        }
+    }
+
+    static final class MiningRequest {
+        final Player player;
+        final int x;
+        final int y;
+
+        MiningRequest(Player player, int x, int y) {
             this.player = player;
             this.x = x;
             this.y = y;
         }
     }
 
-    private static final class MiningProgress {
-        private final int x;
-        private final int y;
-        private final long startMillis;
+    static final class MiningProgress {
+        final int x;
+        final int y;
+        final long startMillis;
 
-        private MiningProgress(int x, int y, long startMillis) {
+        MiningProgress(int x, int y, long startMillis) {
             this.x = x;
             this.y = y;
             this.startMillis = startMillis;
