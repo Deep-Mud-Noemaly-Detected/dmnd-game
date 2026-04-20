@@ -83,7 +83,6 @@ package "Entites" {
     }
 
     class Orc << (C,#D6EAF8) >>
-    class Squelette << (C,#D6EAF8) >>
 }
 
 package "Equipement" {
