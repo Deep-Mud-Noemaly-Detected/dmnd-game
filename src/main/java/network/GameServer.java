@@ -340,6 +340,38 @@ public class GameServer extends Application {
     }
 
     /**
+     * Traite une attaque d'un joueur sur un monstre.
+     * @param x position X du monstre
+     * @param y position Y du monstre
+     * @param monsterType type du monstre ("ORC" ou "SQUELETTE")
+     * @param attacker le joueur qui attaque
+     */
+    public synchronized void processPlayerAttack(int x, int y, String monsterType, Player attacker) {
+        // Cherche le monstre à cette position
+        for (Entity e : entities) {
+            if (!(e instanceof entities.Monster)) continue;
+
+            // Vérifie si c'est le bon monstre (proche de la position)
+            if (Math.abs(e.getX() - x) <= 1 && Math.abs(e.getY() - y) <= 1) {
+                entities.Monster monster = (entities.Monster) e;
+
+                // Inflige 10 dégâts
+                monster.takeDamage(10);
+                System.out.println("[Server] Joueur " + attacker.getName() + " attaque monstre. HP restants: " + monster.getPv());
+
+                // Si le monstre est mort
+                if (!monster.isAlive()) {
+                    removeEntity(monster);
+                    String type = (monster instanceof entities.Orc) ? "ORC" : "SQUELETTE";
+                    publishServerEvent(new GameEvent(GameEvent.MONSTER_KILLED, x, y, type));
+                    System.out.println("[Server] Monstre éliminé !");
+                }
+                break;
+            }
+        }
+    }
+
+    /**
      * Méthode pour ajouter une entité à la liste partagée
      * @param e l'entité à ajouter
      */

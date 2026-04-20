@@ -72,6 +72,8 @@ public class ClientHandler extends Thread {
             this.player.setX(event.x);
             this.player.setY(event.y);
             server.publishServerEvent(new GameEvent(GameEvent.MOVE, event.x, event.y, playerId));
+        } else if (GameEvent.HIT.equals(event.type)) {
+            server.processPlayerAttack(event.x, event.y, event.data, this.player);
         }
     }
 

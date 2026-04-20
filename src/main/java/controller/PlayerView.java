@@ -19,16 +19,22 @@ public final class PlayerView {
     private Facing facing = Facing.DOWN;
     private double animationTime;
 
-    // --- État de minage ---
+    // --- État de minage (Crush = pioche) ---
     private boolean crushing = false;
     private double crushAnimTime = 0;
     private static final double CRUSH_DURATION = 0.4;
+
+    // --- État d'attaque (Pierce = hache) ---
+    private boolean piercing = false;
+    private double pierceAnimTime = 0;
+    private static final double PIERCE_DURATION = 0.35;
 
     public PlayerView(double x, double y) {
         this.x = x;
         this.y = y;
     }
 
+    // --- Minage ---
     public void startCrush() {
         crushing = true;
         crushAnimTime = 0;
@@ -42,12 +48,31 @@ public final class PlayerView {
                 crushAnimTime = 0;
             }
         }
+        if (piercing) {
+            pierceAnimTime += delta;
+            if (pierceAnimTime >= PIERCE_DURATION) {
+                piercing = false;
+                pierceAnimTime = 0;
+            }
+        }
     }
 
     public boolean isCrushing() { return crushing; }
 
     public int getCrushFrame(int frameCount) {
         return (int) (crushAnimTime / CRUSH_DURATION * frameCount) % Math.max(1, frameCount);
+    }
+
+    // --- Attaque ---
+    public void startPierce() {
+        piercing = true;
+        pierceAnimTime = 0;
+    }
+
+    public boolean isPiercing() { return piercing; }
+
+    public int getPierceFrame(int frameCount) {
+        return (int) (pierceAnimTime / PIERCE_DURATION * frameCount) % Math.max(1, frameCount);
     }
 
     public void update(double deltaSeconds, boolean up, boolean down, boolean left, boolean right, CaveGenerator map) {
