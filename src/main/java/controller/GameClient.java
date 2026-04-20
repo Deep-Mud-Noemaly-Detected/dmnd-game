@@ -48,7 +48,7 @@ public class GameClient extends Application {
     private int missionObjectif = MISSION_OBJECTIF;
 
     // --- HP Joueur ---
-    private int playerHp = 100;
+    private int playerHp = 150;
     private static final int PLAYER_MAX_HP = 100;
 
     // --- Minerais ---
@@ -446,14 +446,15 @@ public class GameClient extends Application {
         hacheImg = loadImage("/entities/weapon/nain/hache.png");
 
         // Spritesheets Monstres
-        orcIdle = loadImage("/entities/mobs/Orc/Idle/Idle-Sheet.png");
-        orcRun = loadImage("/entities/mobs/Orc/Run/Run-Sheet.png");
-        skeletonIdle = loadImage("/entities/mobs/Skeleton/Idle/Idle-Sheet.png");
-        skeletonRun = loadImage("/entities/mobs/Skeleton/Run/Run-Sheet.png");
+        orcIdle = loadImage("/entities/mobs/Orc/animations/Idle/Idle-Sheet.png");
+        orcRun = loadImage("/entities/mobs/Orc/animations/Run/Run-Sheet.png");
+        skeletonIdle = loadImage("/entities/mobs/Skeleton/animations/Idle/Idle-Sheet.png");
+        skeletonRun = loadImage("/entities/mobs/Skeleton/animations/Run/Run-Sheet.png");
 
         // Debug
-        System.out.println("[Client] Pierce Down chargé: " + (pierceDown != null));
         System.out.println("[Client] Orc Idle chargé: " + (orcIdle != null));
+        System.out.println("[Client] Orc Run chargé: " + (orcRun != null));
+        System.out.println("[Client] Pierce Down chargé: " + (pierceDown != null));
 
         // Murs
         loadImage("/tiles/mur/tile_0001.png");
@@ -789,7 +790,7 @@ public class GameClient extends Application {
 
         gc.setFont(Font.font("Monospaced", 12));
         gc.setFill(Color.LIGHTGRAY);
-        gc.fillText("Clic G = Miner/Attaquer | ZQSD | F11 = Plein écran | " + statusText, 12, 112);
+        gc.fillText("Clic G = Miner/Attaquer | ZQSD | F11 | Mobs: " + monsters.size() + " | " + statusText, 12, 112);
 
         if (mineraisRecoltes >= missionObjectif) {
             gc.setFill(Color.rgb(0, 0, 0, 0.7));

@@ -32,6 +32,7 @@ public class ClientHandler extends Thread {
             server.addEntity(player);
 
             server.sendExistingPlayersTo(this);
+            server.sendExistingMonstersTo(this);
             sendEvent(new GameEvent(GameEvent.WELCOME, spawn[0], spawn[1], playerId));
             server.sendMissionProgressTo(this);
             server.publishServerEvent(new GameEvent(GameEvent.PLAYER_JOINED, spawn[0], spawn[1], playerId));

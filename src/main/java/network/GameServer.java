@@ -470,4 +470,22 @@ public class GameServer extends Application {
             ));
         }
     }
+
+    /**
+     * Envoie les monstres déjà présents à un nouveau client.
+     * @param target le client qui vient de se connecter
+     */
+    public void sendExistingMonstersTo(ClientHandler target) {
+        for (Entity e : entities) {
+            if (e instanceof entities.Monster) {
+                String type = (e instanceof entities.Orc) ? "ORC" : "SQUELETTE";
+                target.sendEvent(new GameEvent(
+                        GameEvent.SPAWN_MONSTER,
+                        e.getX(),
+                        e.getY(),
+                        type
+                ));
+            }
+        }
+    }
 }
