@@ -98,7 +98,6 @@ package "Equipement" {
 Entity <|-- Player
 Entity <|-- Monster
 Monster <|-- Orc
-Monster <|-- Squelette
 Item <|.. Hache
 Item <|.. Pioche
 GameLoop --|> Thread
