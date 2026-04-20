@@ -1,5 +1,7 @@
 package network;
 
+import controller.GameClient;
+import controller.GameController;
 import entities.Entity;
 import entities.Player;
 import environment.Tile;
@@ -7,6 +9,10 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Label;
+import javafx.scene.layout.VBox;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -14,21 +20,45 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Classe principale du serveur de jeu DMND.
+ * Gère la logique métier, les connexions clients, et la communication réseau.
+ */
 public class GameServer extends Application {
-    private List<ClientHandler> clients = new ArrayList<>();
+    private static final int DEFAULT_MAP_WIDTH = 20;
+    private static final int DEFAULT_MAP_HEIGHT = 20;
+    private static final int MAX_CLIENT_WINDOWS = 8;
+
+    private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
+    private final List<GameClient> launchedClients = new CopyOnWriteArrayList<>();
     private Tile[][] map;
     private int totalGoldCollected = 0;
-    private final int OBJECTIF_OR = 10;
+    private static final int OBJECTIF_OR = 15;
     private GameLoop gameLoop;
-    private List<Entity> entities = new ArrayList<>();
+    private final List<Entity> entities = new CopyOnWriteArrayList<>();
     private int port;
+    private volatile boolean acceptingClients = true;
+    private final AtomicInteger playerIdCounter = new AtomicInteger(1);
+    private final AtomicInteger spawnCounter = new AtomicInteger(0);
+    private MediaPlayer bgMusicPlayer;
 
     public GameServer() {
-        // Laisser vide pour lancer JavaFX sans paramètres
+        initMap(DEFAULT_MAP_WIDTH, DEFAULT_MAP_HEIGHT);
     }
 
     public GameServer(int width, int height) {
+        initMap(width, height);
+    }
+
+    /**
+     * Initialise la carte de jeu avec des tuiles vides.
+     * @param width
+     * @param height
+     */
+    private void initMap(int width, int height) {
         this.map = new Tile[width][height];
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < height; j++) {
@@ -40,39 +70,98 @@ public class GameServer extends Application {
     /**
      * Point d'entrée de l'application JavaFX
      * Le main ne fait que lancer JavaFX
-     * @param args
+     * @param args arguments de lancement
      */
     public static void main(String[] args) {
         launch(args);
     }
 
     /**
-     * Initialise la logique métier et affiche l'interface graphique
-     * JavaFX appelle AUTOMATIQUEMENT cette méthode sur le bon Thread
-     * @param primaryStage la fenêtre principale de JavaFX
+     * Initialise la logique métier et affiche l'interface graphique.
+     * JavaFX appelle automatiquement cette méthode sur le thread FX.
      */
+    @Override
     public void start(Stage primaryStage) {
-        // Initialisation de la logique métier
         this.port = 1234;
         this.gameLoop = new GameLoop(this);
         this.gameLoop.start();
+        startNetworkThread();
 
-        // Lancement de l'UI
+        // Essaye de charger l'interface depuis le FXML.
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/index.fxml"));
+            FXMLLoader loader = new FXMLLoader(GameServer.class.getResource("/index.fxml"));
             Parent root = loader.load();
+            GameController controller = loader.getController();
+            controller.setLaunchClientsAction(this::launchClientWindows);
 
             primaryStage.setTitle("DMND - Serveur");
-            primaryStage.setScene(new Scene(root));
-            primaryStage.setMaximized(true);
-            primaryStage.setFullScreenExitHint("");
+            primaryStage.setScene(new Scene(root, 1000, 720));
             primaryStage.show();
-
-            // Lancer le serveur réseau dans un thread séparé (pour ne pas figer l'UI)
-            startNetworkThread();
-
+            startServerMusic();
         } catch (IOException e) {
-            e.printStackTrace();
+            // Fallback minimal si le FXML est indisponible.
+            Label title = new Label("Serveur DMND actif");
+            Label details = new Label("Port: " + port + " | FXML indisponible");
+            VBox root = new VBox(8, title, details);
+            root.setStyle("-fx-padding: 16; -fx-background-color: #111; -fx-text-fill: white;");
+
+            primaryStage.setTitle("DMND - Serveur");
+            primaryStage.setScene(new Scene(root, 480, 120));
+            primaryStage.show();
+            startServerMusic();
+
+            System.err.println("Impossible de charger index.fxml: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Arrête le serveur, les connexions clients, la boucle de jeu, et la musique de fond.
+     */
+    @Override
+    public void stop() {
+        acceptingClients = false;
+        stopServerMusic();
+        if (gameLoop != null) {
+            gameLoop.stopLoop();
+        }
+        for (ClientHandler client : clients) {
+            client.closeConnection();
+        }
+        for (GameClient launchedClient : launchedClients) {
+            try {
+                launchedClient.stop();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /**
+     * Lance un nombre spécifié de fenêtres clients pour tester le serveur localement.
+     * @param requestedCount
+     */
+    private void launchClientWindows(int requestedCount) {
+        int count = Math.max(1, Math.min(MAX_CLIENT_WINDOWS, requestedCount));
+
+        for (int i = 0; i < count; i++) {
+            try {
+                GameClient clientApp = new GameClient();
+                Stage clientStage = new Stage();
+                clientApp.start(clientStage);
+                clientStage.setTitle("DMND Game - Client " + (launchedClients.size() + 1));
+                clientStage.setX(80 + (launchedClients.size() * 30.0));
+                clientStage.setY(80 + (launchedClients.size() * 30.0));
+                launchedClients.add(clientApp);
+
+                clientStage.setOnHidden(event -> {
+                    try {
+                        clientApp.stop();
+                    } catch (Exception ignored) {
+                    }
+                    launchedClients.remove(clientApp);
+                });
+            } catch (Exception e) {
+                System.err.println("Impossible de lancer un client: " + e.getMessage());
+            }
         }
     }
 
@@ -82,33 +171,101 @@ public class GameServer extends Application {
     private void startNetworkThread() {
         Thread serverThread = new Thread(() -> {
             try (ServerSocket serverSocket = new ServerSocket(port)) {
-                System.out.println("Serveur DMND démarré sur le port " + port);
+                System.out.println("Serveur DMND demarre sur le port " + port);
 
-                while (true) {
-                    Socket socket = serverSocket.accept(); // Attend un client sans figer l'écran
+                while (acceptingClients) {
+                    Socket socket = serverSocket.accept(); // Attend un client sans figer l'ecran
                     ClientHandler handler = new ClientHandler(socket, this);
                     clients.add(handler);
                     handler.start();
-                    System.out.println("Nouveau nain connecté !");
-
-                    // Note : Si tu veux mettre à jour l'UI (ex: un compteur de clients),
-                    // TODO il faudra utiliser Platform.runLater(() -> ... );
+                    System.out.println("Nouveau nain connecte !");
                 }
             } catch (IOException e) {
-                System.err.println("Erreur Serveur : " + e.getMessage());
+                if (acceptingClients) {
+                    System.err.println("Erreur Serveur : " + e.getMessage());
+                }
             }
-        });
+        }, "server-network");
         serverThread.setDaemon(true);
         serverThread.start();
     }
 
-    public synchronized void broadcast(GameEvent event) {
-        for (ClientHandler client : clients) {
-            client.sendEvent(event);
+    /**
+     * Démarre la musique de fond du serveur.
+     */
+    private void startServerMusic() {
+        if (bgMusicPlayer != null) {
+            return;
+        }
+
+        try {
+            var musicUrl = GameServer.class.getResource("/audio/ancient_slavic_pagan_music.wav");
+            if (musicUrl == null) {
+                System.err.println("Musique serveur introuvable: /audio/ancient_slavic_pagan_music.wav");
+                return;
+            }
+
+            Media media = new Media(musicUrl.toExternalForm());
+            bgMusicPlayer = new MediaPlayer(media);
+            bgMusicPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+            bgMusicPlayer.setVolume(0.35);
+            bgMusicPlayer.setOnError(() -> System.err.println("Erreur lecture musique serveur: " + bgMusicPlayer.getError()));
+            bgMusicPlayer.play();
+        } catch (Exception e) {
+            System.err.println("Impossible de lancer la musique serveur: " + e.getMessage());
         }
     }
 
+    /**
+     * Arrête la musique de fond du serveur et libère les ressources associées.
+     */
+    private void stopServerMusic() {
+        if (bgMusicPlayer == null) {
+            return;
+        }
+        try {
+            bgMusicPlayer.stop();
+            bgMusicPlayer.dispose();
+        } catch (Exception ignored) {
+        } finally {
+            bgMusicPlayer = null;
+        }
+    }
+
+    /**
+     * Publie un événement à tous les clients connectés.
+     * @param event
+     */
+    public void publishServerEvent(GameEvent event) {
+        broadcast(event);
+    }
+
+    /**
+     * Envoie un événement à tous les clients connectés. Si l'envoi échoue pour un client, il est déconnecté.
+     * @param event
+     */
+    public void broadcast(GameEvent event) {
+        for (ClientHandler client : clients) {
+            boolean sent = client.sendEvent(event);
+            if (!sent) {
+                removeClient(client);
+            }
+        }
+    }
+
+    /**
+     * Traite une action de minage d'or d'un joueur.
+     * Si la tuile ciblée contient de l'or, le joueur gagne 4 pièces,
+     * la tuile devient vide, et tous les clients sont informés du changement.
+     * @param x
+     * @param y
+     * @param p
+     */
     public synchronized void processMining(int x, int y, Player p) {
+        if (x < 0 || y < 0 || x >= map.length || y >= map[0].length) {
+            return;
+        }
+
         Tile t = map[x][y];
         if (t != null && t.getType() == Tile.GOLD) {
             p.miner(t); // Le joueur gagne +4 or
@@ -116,8 +273,62 @@ public class GameServer extends Application {
             map[x][y] = new Tile(Tile.EMPTY); // Remplace par du vide
 
             // On prévient tout le monde que la case a changé
-            broadcast(new GameEvent("UPDATE_TILE", x, y, "EMPTY"));
+            broadcast(new GameEvent(GameEvent.UPDATE_TILE, x, y, "EMPTY"));
+            broadcastMissionProgress();
         }
+    }
+
+    /**
+     * Enregistre la collecte d'un minerai d'or par un joueur. Incrémente le total, informe les clients, et vérifie si l'objectif est atteint.
+     */
+    public synchronized void registerMineralCollected() {
+        totalGoldCollected++;
+        broadcastMissionProgress();
+        if (verifierObjectif()) {
+            publishServerEvent(new GameEvent(GameEvent.VICTORY, 0, 0, "Objectif atteint !"));
+        }
+    }
+
+    /**
+     * Envoie la progression actuelle de la mission (or collecté vs objectif) à un client spécifique.
+     * @param target
+     */
+    public synchronized void sendMissionProgressTo(ClientHandler target) {
+        if (target == null) {
+            return;
+        }
+        target.sendEvent(new GameEvent(
+                GameEvent.MISSION_PROGRESS,
+                totalGoldCollected,
+                OBJECTIF_OR,
+                ""
+        ));
+    }
+
+    /**
+     * Diffuse à tous les clients la progression actuelle de la mission (or collecté vs objectif).
+     */
+    private synchronized void broadcastMissionProgress() {
+        publishServerEvent(new GameEvent(
+                GameEvent.MISSION_PROGRESS,
+                totalGoldCollected,
+                OBJECTIF_OR,
+                ""
+        ));
+    }
+
+    /**
+     * Demande au GameLoop de traiter une action de minage d'or d'un joueur. Si le GameLoop n'est pas actif, traite immédiatement.
+     * @param x
+     * @param y
+     * @param p
+     */
+    public void requestMining(int x, int y, Player p) {
+        if (gameLoop != null) {
+            gameLoop.requestMining(p, x, y);
+            return;
+        }
+        processMining(x, y, p);
     }
 
     /**
@@ -129,18 +340,152 @@ public class GameServer extends Application {
     }
 
     /**
+     * Traite une attaque d'un joueur sur un monstre.
+     * @param x position X du monstre
+     * @param y position Y du monstre
+     * @param monsterType type du monstre ("ORC" ou "SQUELETTE")
+     * @param attacker le joueur qui attaque
+     */
+    public synchronized void processPlayerAttack(int x, int y, String monsterType, Player attacker) {
+        // Cherche le monstre à cette position
+        for (Entity e : entities) {
+            if (!(e instanceof entities.Monster)) continue;
+
+            // Vérifie si c'est le bon monstre (proche de la position)
+            if (Math.abs(e.getX() - x) <= 1 && Math.abs(e.getY() - y) <= 1) {
+                entities.Monster monster = (entities.Monster) e;
+
+                // Inflige 10 dégâts
+                monster.takeDamage(10);
+                System.out.println("[Server] Joueur " + attacker.getName() + " attaque monstre. HP restants: " + monster.getPv());
+
+                // Si le monstre est mort
+                if (!monster.isAlive()) {
+                    removeEntity(monster);
+                    String type = (monster instanceof entities.Orc) ? "ORC" : "SQUELETTE";
+                    publishServerEvent(new GameEvent(GameEvent.MONSTER_KILLED, x, y, type));
+                    System.out.println("[Server] Monstre éliminé !");
+                }
+                break;
+            }
+        }
+    }
+
+    /**
      * Méthode pour ajouter une entité à la liste partagée
      * @param e l'entité à ajouter
      */
-    public synchronized void addEntity(Entity e) {
+    public void addEntity(Entity e) {
         this.entities.add(e);
     }
 
     /**
-     * Méthode pour récupérer la liste des entités de manière thread-safe
-     * @return une copie de la liste des entités
+     * Méthode pour retirer une entité de la liste partagée
+     * @param e
      */
-    public synchronized List<Entity> getEntities() {
+    public void removeEntity(Entity e) {
+        this.entities.remove(e);
+    }
+
+    /**
+     * Méthode pour retirer un client de la liste partagée
+     * @param client
+     */
+    public void removeClient(ClientHandler client) {
+        clients.remove(client);
+    }
+
+    /**
+     * Retourne la largeur de la carte de jeu.
+     * @return
+     */
+    public int getMapWidth() {
+        return map.length;
+    }
+
+    /**
+     * Retourne la hauteur de la carte de jeu.
+     * @return
+     */
+    public int getMapHeight() {
+        return map[0].length;
+    }
+
+    /**
+     * Retourne une copie pour éviter les problèmes de concurrence pendant l'itération.
+     */
+    public List<Entity> getEntities() {
         return new ArrayList<>(entities);
+    }
+
+    /**
+     * Génère un nouvel ID de joueur unique en utilisant un compteur atomique pour garantir l'unicité même avec des connexions simultanées.
+     * @return
+     */
+    public String nextPlayerId() {
+        return "P" + playerIdCounter.getAndIncrement();
+    }
+
+    /**
+     * Alloue une position de spawn pour un nouveau joueur.
+     * Les positions sont générées autour du centre de la carte pour favoriser les interactions initiales.
+     * @return
+     */
+    public int[] allocateSpawnPosition() {
+        int centerX = Math.max(2, getMapWidth() / 2);
+        int centerY = Math.max(2, getMapHeight() / 2);
+
+        // Spawns proches et jouables pour les premiers joueurs (serveur 1-2 clients local).
+        int[][] spawnOffsets = {
+                {0, 0},
+                {1, 0},
+                {-1, 0},
+                {0, 1},
+                {0, -1},
+                {2, 0},
+                {-2, 0},
+                {0, 2}
+        };
+
+        int idx = spawnCounter.getAndIncrement() % spawnOffsets.length;
+        int x = centerX + spawnOffsets[idx][0];
+        int y = centerY + spawnOffsets[idx][1];
+
+        x = Math.max(1, Math.min(getMapWidth() - 2, x));
+        y = Math.max(1, Math.min(getMapHeight() - 2, y));
+        return new int[]{x, y};
+    }
+
+    /**
+     * Envoie les informations de tous les joueurs déjà connectés à un client cible, afin qu'il puisse les afficher correctement à son arrivée.
+     * @param target
+     */
+    public void sendExistingPlayersTo(ClientHandler target) {
+        for (ClientHandler client : clients) {
+            target.sendEvent(new GameEvent(
+                    GameEvent.PLAYER_JOINED,
+                    client.getPlayerX(),
+                    client.getPlayerY(),
+                    client.getPlayerId()
+            ));
+        }
+    }
+
+    /**
+     * Envoie les monstres déjà présents à un nouveau client.
+     * @param target le client qui vient de se connecter
+     */
+    public void sendExistingMonstersTo(ClientHandler target) {
+        for (Entity e : entities) {
+            if (e instanceof entities.Monster) {
+                String type = (e instanceof entities.Orc) ? "ORC" : "SQUELETTE";
+                target.sendEvent(new GameEvent(
+                        GameEvent.SPAWN_MONSTER,
+                        e.getX(),
+                        e.getY(),
+                        type
+                ));
+            }
+        }
     }
 }

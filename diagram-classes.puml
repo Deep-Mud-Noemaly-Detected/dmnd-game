@@ -1,0 +1,121 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+show circles
+left to right direction
+
+title Diagramme de classes DMND
+
+package "Reseau & Threading" {
+    class GameServer << (C,#D6EAF8) >> {
+        - entities: Entity[]
+        - map: Tile[][]
+        + broadcast(event: GameEvent)
+        + verifierObjectif(): boolean
+        + processMining(x: int, y: int, p: Player)
+        + requestMining(x: int, y: int, p: Player)
+    }
+
+    class ClientHandler << (C,#D6EAF8) >> {
+        - socket: Socket
+        - player: Player
+        + run()
+        + receiveAction(event: GameEvent)
+        + sendEvent(event: GameEvent)
+    }
+
+    class GameEvent << (C,#D6EAF8) >> {
+        + type: String
+        + x: int
+        + y: int
+        + data: String
+    }
+
+    class GameLoop << (C,#D6EAF8) >> {
+        + run()
+        + requestMining(player: Player, x: int, y: int)
+        + stopLoop(): void
+    }
+}
+
+package "Environnement" {
+    class Tile << (C,#D6EAF8) >> {
+        - type: int
+        - isSolid: boolean
+        - goldValue: int
+        + {static} EMPTY : int
+        + {static} GOLD : int
+        + {static} ROCK : int
+        + Tile(type: int)
+        + getType(): int
+    }
+
+    class CaveGenerator << (C,#D6EAF8) >> {
+        + generate(width: int, height: int, wallChance: double, smoothIterations: int): CaveGenerator
+        + findSpawnNearCenter(): int[]
+        + isWall(x: int, y: int): boolean
+        + isWalkable(x: int, y: int): boolean
+    }
+}
+
+package "Entites" {
+    abstract class Entity << (A,#F5CBA7) >> {
+        - x: int
+        - y: int
+        - pv: int
+        + getX(): int
+        + getY(): int
+        + isAlive(): boolean
+        + update()
+    }
+
+    class Player << (C,#D6EAF8) >> {
+        - orCollecte: int
+        - objectifOr: int
+        + miner(Tile t)
+        + combattre(Monster m)
+        + hasReachedObjectif(): boolean
+    }
+
+    abstract class Monster << (A,#F5CBA7) >> {
+        - typeAttaque: String
+        + attaquer(Player p)
+    }
+
+    class Orc << (C,#D6EAF8) >>
+}
+
+package "Equipement" {
+    interface Item << (I,#D5F5E3) >>
+    class Hache << (C,#D6EAF8) >> {
+        - degats: int
+    }
+    class Pioche << (C,#D6EAF8) >> {
+        - puissance: int
+    }
+}
+
+Entity <|-- Player
+Entity <|-- Monster
+Monster <|-- Orc
+Item <|.. Hache
+Item <|.. Pioche
+GameLoop --|> Thread
+
+GameServer *-- GameLoop
+GameServer o-- "0..*" ClientHandler
+GameServer *-- "0..*" Entity
+GameServer *-- "width x height" Tile
+GameServer --> GameEvent
+GameServer --> Player
+ClientHandler --> GameServer
+ClientHandler --> Player
+ClientHandler --> GameEvent
+GameLoop --> GameServer
+GameLoop --> Player
+GameLoop --> GameEvent
+Player ..> Tile
+Player ..> Monster
+Monster ..> Player
+CaveGenerator ..> Tile
+@enduml

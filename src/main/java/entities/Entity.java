@@ -39,6 +39,22 @@ public abstract class Entity {
             return this.pv > 0;
         }
 
+        /**
+         * Inflige des dégâts à l'entité.
+         * @param damage quantité de dégâts
+         */
+        public void takeDamage(int damage) {
+            this.pv = Math.max(0, this.pv - damage);
+        }
+
+        /**
+         * Calcule la distance Manhattan avec une autre entité.
+         * Simple et efficace pour un jeu tile-based.
+         */
+        public int distanceTo(Entity other) {
+            return Math.abs(this.x - other.getX()) + Math.abs(this.y - other.getY());
+        }
+
         public void update() {
             // Logique de mise à jour de l'entité
         }
