@@ -49,7 +49,7 @@ public class GameClient extends Application {
 
     // --- HP Joueur ---
     private int playerHp = 150;
-    private static final int PLAYER_MAX_HP = 100;
+    private static final int PLAYER_MAX_HP = 150;
 
     // --- Minerais ---
     private int[][] mineraiHP;
